@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getUserProfile, updateUserProfile } from '../services/userService';
+import { getUserProfile } from '../services/userService';
 import MovieCard from '../components/MovieCard';
 import { ArrowLeft } from 'lucide-react';
 
@@ -61,7 +61,7 @@ const ProfilePage: React.FC = () => {
   if (loading) {
     return (
       <div className="bg-netflix-black min-h-screen pt-20 flex justify-center">
-        <div className="loader border-t-4 border-netflix-red rounded-full border-4 border-t-netflix-red border-gray-800 h-12 w-12 animate-spin mt-20"></div>
+        <div className="loader border-t-4 border-netflix-red rounded-full border-4 h-12 w-12 animate-spin mt-20"></div>
       </div>
     );
   }
@@ -125,7 +125,7 @@ const ProfilePage: React.FC = () => {
             {profile?.watchlist && profile.watchlist.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6">
                 {profile.watchlist.map((item) => (
-                  <MovieCard key={`watchlist-${item.id}`} media={item} />
+                  <MovieCard key={`watchlist-${item.id}`} movie={item} />
                 ))}
               </div>
             ) : (
@@ -143,7 +143,7 @@ const ProfilePage: React.FC = () => {
             {profile?.favorites && profile.favorites.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6">
                 {profile.favorites.map((item) => (
-                  <MovieCard key={`favorite-${item.id}`} media={item} />
+                  <MovieCard key={`watchlist-${item.id}`} movie={item} />
                 ))}
               </div>
             ) : (

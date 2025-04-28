@@ -13,6 +13,7 @@ const omdbApi = axios.create({
 });
 
 export interface OmdbMovie {
+  imdbVotes?: string;
   imdbID: string;
   Title: string;
   Year: string;
@@ -32,6 +33,7 @@ export interface OmdbMovie {
   Writer?: string;
   totalSeasons?: string;
   Response: string;
+  BoxOffice?: string;
 }
 
 export interface SearchResponse {
@@ -41,15 +43,24 @@ export interface SearchResponse {
   Error?: string;
 }
 
-// Fetch details by ID
-export const fetchDetails = async (id: string): Promise<OmdbMovie> => {
+/**
+ * Fetches detailed information for a specific movie or TV show
+ * @param id - IMDb ID of the media
+ * @param type - Type of media (movie or series)
+ */
+export const fetchDetails = async (id: string, type?: string): Promise<OmdbMovie> => {
   try {
-    const response = await omdbApi.get('', {
-      params: {
-        i: id,
-        plot: 'full',
-      },
-    });
+    const params: Record<string, string> = {
+      i: id, // Using IMDb ID
+      plot: 'full', // Get full plot
+    };
+    
+    // Add type if provided
+    if (type === 'movie' || type === 'tv') {
+      params.type = type === 'tv' ? 'series' : 'movie';
+    }
+    
+    const response = await omdbApi.get('', { params });
     
     if (response.data.Response === 'False') {
       throw new Error(response.data.Error || 'Failed to fetch details');

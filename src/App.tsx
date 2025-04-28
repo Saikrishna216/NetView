@@ -9,43 +9,40 @@ import MediaDetailsPage from './pages/MediaDetailsPage';
 import SearchPage from './pages/SearchPage';
 import ProfilePage from './pages/ProfilePage';
 import PrivateRoute from './components/PrivateRoute';
-import Layout from './components/Layout'; // Ensure the Layout component exists in the specified path
+import Layout from './components/Layout.tsx';
 
 function App() {
   return (
     <AuthProvider>
       <Router>
-        <div className="font-sans bg-netflix-black text-white min-h-screen">
+        <div className="font-sans bg-netflix-black text-white min-h-screen flex flex-col">
           <Navbar />
           <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<HomePage />} />
-              <Route path="search" element={<SearchPage />} />
-              <Route path="login" element={<LoginPage />} />
-              <Route path="signup" element={<SignupPage />} />
-              <Route path="movie/:id" element={<MediaDetailsPage mediaType="movie" />} />
-              <Route path="tv/:id" element={<MediaDetailsPage mediaType="tv" />} />
-              <Route 
-                path="profile" 
-                element={
-                  <PrivateRoute>
-                    <ProfilePage />
-                  </PrivateRoute>
-                } 
-              />
+            <Route element={<Layout />}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignupPage />} />
+              <Route path="/movie/:id" element={<MediaDetailsPage />} />
+              <Route path="/tv/:id" element={<MediaDetailsPage />} />
+              <Route path="/profile" element={
+                <PrivateRoute>
+                  <ProfilePage />
+                </PrivateRoute>
+              } />
             </Route>
           </Routes>
+          <Toaster
+            position="bottom-center"
+            toastOptions={{
+              style: {
+                background: '#333',
+                color: '#fff',
+              },
+              duration: 3000,
+            }}
+          />
         </div>
-        <Toaster
-          position="bottom-center"
-          toastOptions={{
-            style: {
-              background: '#333',
-              color: '#fff',
-            },
-            duration: 3000,
-          }}
-        />
       </Router>
     </AuthProvider>
   );

@@ -1,36 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Play, Plus, ThumbsUp, ArrowLeft } from 'lucide-react';
-import { fetchMovieDetails, fetchTvDetails, backdropSizes } from '../services/tmdb';
+import { fetchDetails, OmdbMovie } from '../services/tmdb';
 import { useAuth } from '../context/AuthContext';
 import { addToWatchlist, addToFavorites } from '../services/userService';
-import { MovieDetails, TvDetails } from '../types/media';
+import { toast } from 'react-hot-toast';
 
+/**
+ * MediaDetailsPage displays detailed information about a movie or TV show
+ * Compatible with OMDb API data structure
+ */
 const MediaDetailsPage: React.FC = () => {
-  const { id, mediaType = 'movie' } = useParams<{ id: string; mediaType: string }>();
-  const [details, setDetails] = useState<MovieDetails | TvDetails | null>(null);
+  const { id } = useParams<{ id: string }>();
+  const mediaType = window.location.pathname.includes('/movie/') ? 'movie' : 'tv';
+  const [details, setDetails] = useState<OmdbMovie | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchDetails = async () => {
+    const fetchMediaDetails = async () => {
       if (!id) return;
       
       try {
         setLoading(true);
         setError('');
         
-        const mediaId = parseInt(id);
-        let data;
-        
-        if (mediaType === 'tv') {
-          data = await fetchTvDetails(mediaId);
-        } else {
-          data = await fetchMovieDetails(mediaId);
-        }
+        // Pass the detected media type to fetchDetails
+        const data = await fetchDetails(id, mediaType);
         
         if (data) {
+          console.log("Media details:", data);
           setDetails(data);
         } else {
           throw new Error('Failed to fetch details');
@@ -43,31 +44,37 @@ const MediaDetailsPage: React.FC = () => {
       }
     };
     
-    fetchDetails();
+    fetchMediaDetails();
   }, [id, mediaType]);
 
   const handleAddToWatchlist = async () => {
     if (!currentUser || !details) return;
     
-    const mediaItem = {
-      id: details.id,
-      title: 'title' in details ? details.title : details.name,
-      poster_path: details.poster_path,
-      media_type: mediaType,
-      added_at: new Date().toISOString()
-    };
-    
-    await addToWatchlist(currentUser.uid, mediaItem);
+    try {
+      const mediaItem = {
+        id: details.imdbID,
+        title: details.Title || 'Unknown Title',
+        poster_path: details.Poster,
+        media_type: details.Type || 'movie',
+        added_at: new Date().toISOString()
+      };
+      
+      await addToWatchlist(currentUser.uid, mediaItem);
+      toast.success('Added to your watchlist');
+    } catch (error) {
+      console.error('Error adding to watchlist:', error);
+      toast.error('Failed to add to watchlist');
+    }
   };
 
   const handleAddToFavorites = async () => {
     if (!currentUser || !details) return;
     
     const mediaItem = {
-      id: details.id,
-      title: 'title' in details ? details.title : details.name,
-      poster_path: details.poster_path,
-      media_type: mediaType,
+      id: details.imdbID,
+      title: details.Title || 'Unknown Title',
+      poster_path: details.Poster,
+      media_type: details.Type || 'movie',
       added_at: new Date().toISOString()
     };
     
@@ -75,7 +82,7 @@ const MediaDetailsPage: React.FC = () => {
   };
 
   const goBack = () => {
-    window.history.back();
+    navigate(-1);
   };
 
   if (loading) {
@@ -109,24 +116,38 @@ const MediaDetailsPage: React.FC = () => {
     );
   }
 
-  const title = 'title' in details ? details.title : details.name;
-  const releaseDate = 'release_date' in details ? details.release_date : details.first_air_date;
-  const releaseYear = releaseDate ? new Date(releaseDate).getFullYear() : '';
+  if (details && (!details.Title || details.Title === 'N/A')) {
+    return (
+      <div className="bg-netflix-black min-h-screen pt-24 flex items-center justify-center">
+        <div className="text-center p-8 bg-gray-900 rounded-lg">
+          <h2 className="text-2xl text-white mb-4">Limited Information Available</h2>
+          <p className="text-gray-400 mb-6">This title has limited information in our database.</p>
+          <button
+            onClick={goBack}
+            className="bg-netflix-red text-white py-2 px-6 rounded-md inline-flex items-center"
+          >
+            <ArrowLeft size={20} className="mr-2" /> Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Extract details using OMDb properties
+  const title = details.Title || '';
+  const releaseYear = details.Year || '';
+  const runtime = details.Runtime || '';
+  const plot = details.Plot || '';
+  // Removed unused posterUrl variable
   
-  const runtime = 'runtime' in details 
-    ? `${Math.floor(details.runtime / 60)}h ${details.runtime % 60}m` 
-    : details.episode_run_time && details.episode_run_time.length > 0 
-      ? `${Math.floor(details.episode_run_time[0] / 60)}h ${details.episode_run_time[0] % 60}m per episode` 
-      : '';
-
-  const backdropUrl = details.backdrop_path 
-    ? `${backdropSizes.large}${details.backdrop_path}` 
-    : 'https://via.placeholder.com/1280x720?text=No+Image';
-
-  // Find trailer
-  const trailer = details.videos?.results.find(
-    video => video.site === 'YouTube' && (video.type === 'Trailer' || video.type === 'Teaser')
-  );
+  // Use Poster as backdrop for OMDb (since OMDb doesn't provide backdrop images)
+  const backdropUrl = details.Poster !== 'N/A' ? details.Poster : '/placeholder-backdrop.png';
+  
+  // Extract genres if available
+  const genres = details.Genre ? details.Genre.split(',').map(genre => ({
+    id: genre.trim(),
+    name: genre.trim()
+  })) : [];
 
   return (
     <div className="bg-netflix-black min-h-screen">
@@ -156,7 +177,7 @@ const MediaDetailsPage: React.FC = () => {
             <span className="mr-4">{releaseYear}</span>
             {runtime && <span className="mr-4">{runtime}</span>}
             <div className="flex flex-wrap gap-2">
-              {details.genres.map(genre => (
+              {genres.map(genre => (
                 <span key={genre.id} className="px-2 py-1 bg-gray-800 rounded-md text-sm">
                   {genre.name}
                 </span>
@@ -164,19 +185,18 @@ const MediaDetailsPage: React.FC = () => {
             </div>
           </div>
           
-          <p className="text-lg text-gray-200 max-w-2xl mb-8">{details.overview}</p>
+          <p className="text-lg text-gray-200 max-w-2xl mb-8">{plot}</p>
           
           <div className="flex space-x-4 flex-wrap gap-y-3">
-            {trailer && (
-              <a 
-                href={`https://www.youtube.com/watch?v=${trailer.key}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-white text-black py-2 px-6 rounded-md font-semibold flex items-center hover:bg-gray-200 transition"
-              >
-                <Play className="mr-2" size={20} fill="currentColor" /> Watch Trailer
-              </a>
-            )}
+            {/* OMDb doesn't provide trailer info, so we'll show a link to search for it */}
+            <a 
+              href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${title} ${releaseYear} trailer`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-white text-black py-2 px-6 rounded-md font-semibold flex items-center hover:bg-gray-200 transition"
+            >
+              <Play className="mr-2" size={20} fill="currentColor" /> Find Trailer
+            </a>
             
             <button
               onClick={handleAddToWatchlist}
@@ -195,29 +215,65 @@ const MediaDetailsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Cast section */}
+      {/* Additional Info Section */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h2 className="text-2xl font-bold text-white mb-6">Cast</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {details.credits?.cast.slice(0, 10).map(person => (
-            <div key={person.id} className="bg-gray-800 rounded-md overflow-hidden">
-              {person.profile_path ? (
-                <img 
-                  src={`https://image.tmdb.org/t/p/w185${person.profile_path}`} 
-                  alt={person.name} 
-                  className="w-full aspect-[2/3] object-cover"
-                />
-              ) : (
-                <div className="w-full aspect-[2/3] bg-gray-700 flex items-center justify-center">
-                  <span className="text-gray-500">No Image</span>
-                </div>
+        <h2 className="text-2xl font-bold text-white mb-6">Details</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div>
+            <h3 className="text-xl text-white mb-4">Information</h3>
+            <div className="space-y-3">
+              {details.Director && details.Director !== 'N/A' && (
+                <p className="text-gray-200">
+                  <span className="text-gray-400">Director:</span> {details.Director}
+                </p>
               )}
-              <div className="p-3">
-                <p className="text-white font-medium truncate">{person.name}</p>
-                <p className="text-gray-400 text-sm truncate">{person.character}</p>
-              </div>
+              {details.Writer && details.Writer !== 'N/A' && (
+                <p className="text-gray-200">
+                  <span className="text-gray-400">Writer:</span> {details.Writer}
+                </p>
+              )}
+              {details.Actors && details.Actors !== 'N/A' && (
+                <p className="text-gray-200">
+                  <span className="text-gray-400">Actors:</span> {details.Actors}
+                </p>
+              )}
+              {details.Country && details.Country !== 'N/A' && (
+                <p className="text-gray-200">
+                  <span className="text-gray-400">Country:</span> {details.Country}
+                </p>
+              )}
+              {details.Language && details.Language !== 'N/A' && (
+                <p className="text-gray-200">
+                  <span className="text-gray-400">Language:</span> {details.Language}
+                </p>
+              )}
             </div>
-          ))}
+          </div>
+          <div>
+            <h3 className="text-xl text-white mb-4">Ratings</h3>
+            <div className="space-y-3">
+              {details.imdbRating && details.imdbRating !== 'N/A' && (
+                <p className="text-gray-200">
+                  <span className="text-gray-400">IMDb Rating:</span> {details.imdbRating}
+                </p>
+              )}
+              {details.imdbVotes && details.imdbVotes !== 'N/A' && (
+                <p className="text-gray-200">
+                  <span className="text-gray-400">IMDb Votes:</span> {details.imdbVotes}
+                </p>
+              )}
+              {details.Awards && details.Awards !== 'N/A' && (
+                <p className="text-gray-200">
+                  <span className="text-gray-400">Awards:</span> {details.Awards}
+                </p>
+              )}
+              {details.BoxOffice && details.BoxOffice !== 'N/A' && (
+                <p className="text-gray-200">
+                  <span className="text-gray-400">Box Office:</span> {details.BoxOffice}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
